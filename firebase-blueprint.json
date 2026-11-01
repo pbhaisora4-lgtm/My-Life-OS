@@ -1,0 +1,40 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile and cloud sync metadata for MY LIFE OS.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email", "description": "User email" },
+        "displayName": { "type": "string", "description": "Display name" },
+        "photoURL": { "type": "string", "description": "Avatar URL" },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "Role" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last sync timestamp" }
+      },
+      "required": ["uid", "email", "role", "updatedAt"]
+    },
+    "CloudVaultSnapshot": {
+      "title": "CloudVaultSnapshot",
+      "description": "Encrypted/JSON snapshot of the user's complete MY LIFE OS database for cross-device sync.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Owner Firebase Auth UID" },
+        "payloadJson": { "type": "string", "description": "Serialized JSON backup of IndexedDB stores" },
+        "recordCount": { "type": "number", "description": "Number of records in snapshot" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "ISO timestamp of snapshot" }
+      },
+      "required": ["uid", "payloadJson", "recordCount", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profile document"
+    },
+    "/users/{userId}/vault/{vaultId}": {
+      "schema": { "$ref": "#/entities/CloudVaultSnapshot" },
+      "description": "User's private MY LIFE OS cloud sync vault documents"
+    }
+  }
+}

@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /users/{userId}
+    // Document ID: {userId} (matches Firebase Auth UID)
+    // Fields:
+    //   - uid: string (required, immutable, matches userId)
+    //   - email: string (required, max 254 chars)
+    //   - displayName: string (optional, max 120 chars)
+    //   - photoURL: string (optional, max 1024 chars)
+    //   - role: string (required, 'user' | 'admin')
+    //   - updatedAt: string (required, ISO 8601 timestamp string)
+    //
+    // Collection: /users/{userId}/vault/{vaultId}
+    // Document ID: {vaultId} (e.g., 'primary')
+    // Fields:
+    //   - uid: string (required, immutable, matches userId)
+    //   - payloadJson: string (required, max 950000 chars)
+    //   - recordCount: number (required, >= 0)
+    //   - updatedAt: string (required, ISO 8601 timestamp string)
+    //
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+          (request.auth.token.email == "pbhaisora4@gmail.com" && request.auth.token.email_verified == true)
+        );
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'role', 'updatedAt']) &&
+        data.uid is string && data.uid == userId &&
+        data.email is string && data.email.size() > 0 && data.email.size() <= 254 &&
+        (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 120)) &&
+        (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 1024)) &&
+        data.role in ['user', 'admin'] &&
+        isValidDateString(data.updatedAt);
+    }
+
+    function isValidVaultSnapshot(data, userId) {
+      return data.keys().hasAll(['uid', 'payloadJson', 'recordCount', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'payloadJson', 'recordCount', 'updatedAt']) &&
+        data.uid is string && data.uid == userId &&
+        data.payloadJson is string && data.payloadJson.size() >= 2 && data.payloadJson.size() <= 950000 &&
+        data.recordCount is number && data.recordCount >= 0 &&
+        isValidDateString(data.updatedAt);
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) &&
+        isValidUserProfile(request.resource.data, userId) &&
+        (request.resource.data.role == 'user' || isAdmin());
+      allow update: if isOwner(userId) &&
+        isValidUserProfile(request.resource.data, userId) &&
+        request.resource.data.uid == resource.data.uid &&
+        (request.resource.data.role == resource.data.role || isAdmin());
+      allow delete: if isOwner(userId) || isAdmin();
+
+      match /vault/{vaultId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) &&
+          isValidVaultSnapshot(request.resource.data, userId);
+        allow update: if isOwner(userId) &&
+          isValidVaultSnapshot(request.resource.data, userId) &&
+          request.resource.data.uid == resource.data.uid;
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+    }
+  }
+}

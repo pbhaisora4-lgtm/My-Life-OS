@@ -1,0 +1,11 @@
+{
+  "name": "MY LIFE OS",
+  "description": "Private personal life management progressive web app designed for iPhone.",
+  "requestFramePermissions": [
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
